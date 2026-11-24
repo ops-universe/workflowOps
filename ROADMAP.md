@@ -1,8 +1,8 @@
 # Roadmap
 
-- [ ] Phase 1: Foundation, contracts, synthetic workflows and CI
-- [ ] Phase 2: Deterministic DAG engine and task registry
-- [ ] Phase 3: Durable checkpoints and state transitions
+- [x] Phase 1: Foundation, contracts, synthetic workflow test fixture and CI (PR #1/#2); expanded threat model in Phase 3
+- [x] Phase 2: Deterministic DAG engine and task registry (PR #2)
+- [ ] Phase 3: Durable checkpoints and state transitions (implementation proposed)
 - [ ] Phase 4: Retries, cancellation, timeouts and recovery
 - [ ] Phase 5: Governance and approvals
 - [ ] Phase 6: Optional mock AI adapters
