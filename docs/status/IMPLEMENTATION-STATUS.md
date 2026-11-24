@@ -1,3 +1,2 @@
-# Implementation status
-
-Phase 1 template and dependency repair proposed. CI verification pending. Template policy tests are not workflow engine tests. All subsequent phases pending.
+# Status
+Foundation template merged; core and website CI passed in run 45459119571. Foundation still lacks dedicated synthetic workflows and complete workflow threat model. Phase 2 initial DAG engine and negative-path tests proposed; CI pending. Phases 3–9 pending.

@@ -1,5 +1,5 @@
 # Changelog
 
 ## Unreleased
-- Adopted shared governance and website starter.
-- Restored matching package manifests and template lockfiles.
+- Adopted foundation template and matching lockfiles; foundation CI passed.
+- Proposed v1 deterministic DAG execution, explicit registry and failure propagation.
