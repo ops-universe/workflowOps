@@ -1,0 +1,38 @@
+name: Core CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm test
+  website-build:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: website-react
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install website dependencies
+        run: |
+          npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run build
+      - name: Verify root and project base builds
+        run: |
+          test -f dist/index.html
+          VITE_BASE_PATH=/workflowOps/ npm run build
+          grep -q '/workflowOps/assets/' dist/index.html
