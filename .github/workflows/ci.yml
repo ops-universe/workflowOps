@@ -37,3 +37,16 @@ jobs:
           test -f dist/index.html
           VITE_BASE_PATH=/workflowOps/ npm run build
           grep -q '/workflowOps/assets/' dist/index.html
+  browser-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: google-chrome --version
+      - run: node browser/acceptance.mjs
