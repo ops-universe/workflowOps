@@ -1,6 +1,6 @@
 # Changelog
 
 ## Unreleased
-- Foundation PR #1 merged; CI run 45459119571 passed.
-- Deterministic DAG engine PR #2 merged; CI run 45461332932 passed.
-- Proposed local durable execution checkpoints and conservative resume semantics.
+- Foundation and DAG engine merged (PRs #1–2).
+- Durable checkpoints merged (PR #3, CI 45494302731).
+- Proposed bounded retries, cancellation and timeout handling with conservative recovery.

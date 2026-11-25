@@ -1,2 +1,2 @@
 # Status
-Foundation and deterministic DAG engine merged; PR #2 CI run 45461332932 passed. Phase 3 durable state implementation proposed; CI pending. Phases 4–9 pending. No release claim.
+Phases 1–3 merged (foundation hardening outstanding). Phase 4 reliability proposed; exact-head CI pending. Phases 5–8 pending; public release and promotional work deferred.
