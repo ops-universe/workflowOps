@@ -13,6 +13,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npm test
   website-build:
     runs-on: ubuntu-24.04
