@@ -1,2 +1,2 @@
 # Status
-Foundation template merged; core and website CI passed in run 45459119571. Foundation still lacks dedicated synthetic workflows and complete workflow threat model. Phase 2 initial DAG engine and negative-path tests proposed; CI pending. Phases 3–9 pending.
+Foundation and deterministic DAG engine merged; PR #2 CI run 45461332932 passed. Phase 3 durable state implementation proposed; CI pending. Phases 4–9 pending. No release claim.

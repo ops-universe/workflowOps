@@ -1,3 +1,3 @@
 # Resume
-Last verified main: 121414f1f2aa48f74811627c8dad81c44dae67ee
-Foundation PR #1 merged; CI run 45459119571 passed. Phase 2 branch feat/dag-engine: versioned DAG validation, registry, ordering and results. Verify npm ci && npm test and website CI. Next: durable state and definition fingerprint after eligible merge.
+Last verified main: 610b9ec9a3ca12a356946b24a0bafcd6f81b8724
+Phase 2 merged, CI 45461332932. Phase 3 branch feat/durable-state. Verify npm ci && npm test; website CI. Next: exact-head CI, merge eligibility, bounded retries and cancellation. Interrupted running tasks require reconciliation; stale locks require manual inspection. No exactly-once claims.
