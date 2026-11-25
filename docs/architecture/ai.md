@@ -1,0 +1,2 @@
+# AI tasks
+AI disabled by default. Only trusted offline mock adapter implementations accepted; no network provider implemented. Strict output schema: summary and classification. Outputs cannot choose a handler or authorize actions; downstream trusted code must treat summaries as untrusted. Per-action call count is in memory, not durable across recreation; persisted total task-attempt limit bounds executions across resume when configured. Budget counts attempts rather than tokens or monetary costs. No live model or billing guarantees.
