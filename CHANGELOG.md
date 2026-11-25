@@ -1,6 +1,6 @@
 # Changelog
 
 ## Unreleased
-- Foundation, DAG, checkpoints and reliability merged (PRs #1–4).
-- Governance merged (PR #5, CI 45521304635); core and website dependency audits passed.
-- Proposed offline mock AI adapter, strict output schema and persisted execution-attempt budget.
+- Foundation through governance merged (PRs #1–5).
+- Offline AI and execution budgets merged (PR #6, CI 45522279322).
+- Proposed CLI validation, DAG edges, dry run, execution, resume, approval and checkpoint inspection; four synthetic scenarios.
