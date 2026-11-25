@@ -13,12 +13,30 @@ try{
  const run=await cli(['run','supplier',dir]);server=await dashboard(dir);
  const url='http://127.0.0.1:'+server.address().port;
  const profile=join(dir,'chrome');
- chrome=spawn(process.env.CHROME_BIN||'google-chrome',['--headless=new','--disable-dev-shm-usage','--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'],{stdio:'ignore'});
- let port;for(let i=0;i<100;i++){try{port=Number((await readFile(join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);if(port)break;}catch{}await sleep(100);}
- assert.ok(port,'Chromium debugging port');
- const targets=await (await fetch('http://127.0.0.1:'+port+'/json/list')).json();
- ws=new WebSocket(targets.find(t=>t.type==='page').webSocketDebuggerUrl);
- await new Promise((ok,fail)=>{ws.addEventListener('open',ok,{once:true});ws.addEventListener('error',fail,{once:true});});
+ let startupError,stderr='';
+ chrome=spawn(process.env.CHROME_BIN||'google-chrome',['--headless=new','--disable-dev-shm-usage','--no-first-run','--no-default-browser-check','--remote-debugging-port=0','--remote-debugging-address=127.0.0.1','--user-data-dir='+profile,'about:blank'],{stdio:['ignore','ignore','pipe']});
+ chrome.on('error',e=>{startupError=e;});
+ chrome.stderr.on('data',chunk=>{stderr=(stderr+chunk.toString()).slice(-12000);});
+ let target;
+ const deadline=Date.now()+60000;
+ while(Date.now()<deadline){
+  if(startupError||chrome.exitCode!==null||chrome.signalCode!==null)throw Error('Chromium exited during startup: '+(startupError?.message??chrome.exitCode??chrome.signalCode)+'\n'+stderr);
+  try{
+   const port=Number((await readFile(join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);
+   if(Number.isInteger(port)&&port>0&&port<=65535){
+    const response=await fetch('http://127.0.0.1:'+port+'/json/list',{signal:AbortSignal.timeout(2000)});
+    if(response.ok){target=(await response.json()).find(t=>t.type==='page'&&t.webSocketDebuggerUrl);if(target)break;}
+   }
+  }catch{}
+  await sleep(200);
+ }
+ assert.ok(target,'Chromium debugging endpoint not ready within 60s\n'+stderr);
+ ws=new WebSocket(target.webSocketDebuggerUrl);
+ await new Promise((ok,fail)=>{
+  const timer=setTimeout(()=>fail(Error('Chromium WebSocket handshake timed out')),10000);
+  ws.addEventListener('open',()=>{clearTimeout(timer);ok();},{once:true});
+  ws.addEventListener('error',()=>{clearTimeout(timer);fail(Error('Chromium WebSocket connection failed'));},{once:true});
+ });
  let seq=0;const pending=new Map();ws.addEventListener('message',e=>{const m=JSON.parse(e.data);if(pending.has(m.id)){const cb=pending.get(m.id);pending.delete(m.id);cb(m);}});
  async function send(method,params={}){const id=++seq;const m=await new Promise((ok,fail)=>{const timer=setTimeout(()=>{pending.delete(id);fail(Error('CDP timeout: '+method));},10000);pending.set(id,m=>{clearTimeout(timer);ok(m);});ws.send(JSON.stringify({id,method,params}));});if(m.error)throw Error(JSON.stringify(m.error));return m.result;}
  async function evaluate(expression){const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error('Browser evaluation failed');return r.result.value;}
@@ -40,4 +58,4 @@ try{
  assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'));
  await evaluate("document.querySelector('#execution').value='bad';document.querySelector('#load').requestSubmit()");await wait("document.querySelector('#status').textContent==='Unable to load checkpoint'");
  console.log('Chromium acceptance passed: load, DAG, keyboard task inspection, approval refresh, timeline, mobile layout, invalid input');
-}finally{ws?.close();if(chrome){chrome.kill();await Promise.race([new Promise(ok=>chrome.once('exit',ok)),sleep(2000)]);}if(server)await new Promise(ok=>server.close(ok));await rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
+}finally{ws?.close();if(chrome&&chrome.exitCode===null&&chrome.signalCode===null){const exited=new Promise(ok=>chrome.once('exit',ok));chrome.kill();await Promise.race([exited,sleep(3000)]);if(chrome.exitCode===null&&chrome.signalCode===null){chrome.kill('SIGKILL');await Promise.race([exited,sleep(2000)]);}}if(server)await new Promise(ok=>server.close(ok));await rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
