@@ -1,3 +1,3 @@
 # Resume
-Verified main: 4ebdffe094bfd5da731aa3f84c206cfb65f65996
-PR #6 merged; CI 45522279322. Branch feat/cli-dashboard adds CLI and synthetic scenarios. Verify npm ci && npm audit --audit-level=high && npm test and website CI. Next: functional dashboard, durable timeline, security tests and budget hardening. No release or exactly-once claims.
+Verified main: 39c5d5db4a7f63f15661ff871cedbc0bac2053be
+PR #7 merged; CI 45526307140 passed. Branch feat/local-dashboard proposes read-only dashboard and persisted timeline. Verify npm ci && npm audit --audit-level=high && npm test and website CI. Next: real browser acceptance and remaining security hardening. Trusted local checkpoint root; no exactly-once guarantee. Release deferred.

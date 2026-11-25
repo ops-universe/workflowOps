@@ -1,11 +1,7 @@
 # Roadmap
 
-- [x] Phase 1: Foundation scaffold (security hardening outstanding)
-- [x] Phase 2: DAG engine
-- [x] Phase 3: Durable checkpoints
-- [x] Phase 4: Reliability
-- [x] Phase 5: Governance
-- [x] Phase 6: Offline mock AI and budgets (PR #6, CI 45522279322)
-- [ ] Phase 7: CLI implemented in proposed PR; dashboard and timeline pending
-- [ ] Phase 8: Synthetic scenarios proposed; acceptance verification pending
-- [ ] Phase 9: Release deferred
+- [x] Phases 1–6: foundation, DAG, state, reliability, governance, offline AI (scoped implementations)
+- [ ] Phase 7: CLI merged in PR #7; local dashboard and timeline proposed; browser acceptance pending
+- [x] Phase 8: four synthetic CLI scenarios merged and tested in PR #7
+- [ ] Final security review and remaining hardening
+- [ ] Phase 9: public release deferred

@@ -1,2 +1,2 @@
 # Status
-Phases 1–6 merged. PR #6 exact-head CI passed four checks. Phase 7 CLI and Phase 8 scenario implementation proposed; dashboard, timeline, security hardening and CI verification remain. Release deferred.
+Main 39c5d5db: PR #7 merged; post-merge CI 45526307140 passed. CLI and synthetic scenarios merged. Dashboard and timeline proposed; browser acceptance and remaining security review pending. Public release deferred.

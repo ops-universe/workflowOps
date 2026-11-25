@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm,symlink} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {cli} from '../src/cli.mjs';
+import {dashboard} from '../src/dashboard.mjs';
+test('dashboard reads durable timeline, denies mutations and cross-origin requests',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'dashboard-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const run=await cli(['run','recovery',dir]);assert.equal(run.timeline.filter(e=>e.type==='attempt'&&e.taskId==='retry').length,2);
+ const server=await dashboard(dir);t.after(()=>new Promise(ok=>server.close(ok)));
+ const base='http://127.0.0.1:'+server.address().port,api=base+'/api/execution?scenario=recovery&id='+run.executionId;
+ const response=await fetch(api);assert.equal(response.status,200);assert.deepEqual((await response.json()).execution.timeline,run.timeline);
+ assert.equal((await fetch(api,{method:'POST'})).status,405);
+ assert.equal((await fetch(api,{headers:{Origin:'https://example.com'}})).status,403);
+ assert.equal((await fetch(base+'/api/execution?scenario=recovery&id=../secret')).status,400);
+ const fake='12345678-1234-4234-8234-123456789abc';await symlink(join(dir,run.executionId+'.json'),join(dir,fake+'.json'));
+ assert.equal((await fetch(base+'/api/execution?scenario=recovery&id='+fake)).status,400);
+ assert.match((await fetch(base)).headers.get('content-security-policy'),/frame-ancestors 'none'/);
+});
