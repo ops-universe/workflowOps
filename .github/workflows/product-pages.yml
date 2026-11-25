@@ -12,21 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Generate and validate static pages
-        run: node site/build.mjs
-      - name: Upload Pages artifact
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site/dist
+    uses: ops-universe/.github/.github/workflows/reusable-pages-build.yml@d24184214288a97c23ae7a9c2b9d11e710830c15
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
@@ -44,3 +30,41 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+  live-smoke:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Verify deployed public routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=https://ops-universe.github.io/workflowOps/
+          for route in '' features/ documentation/; do
+            case "$route" in
+              '') title=Home ;;
+              features/) title=Features ;;
+              documentation/) title=Documentation ;;
+            esac
+            url="$base$route"
+            body="$RUNNER_TEMP/pages-smoke.html"
+            ok=0
+            for attempt in 1 2 3 4 5; do
+              if curl --fail --silent --show-error --proto '=https' --connect-timeout 10 --max-time 20 --max-filesize 2097152 --output "$body" "$url" &&
+                 grep -Fq "<title>workflowOps — $title</title>" "$body" &&
+                 grep -Fq "<link rel=\"canonical\" href=\"$url\">" "$body" &&
+                 grep -Fq 'aria-current="page"' "$body" &&
+                 grep -Fq 'id="theme-panel"' "$body" &&
+                 grep -Fq 'id="search-dialog"' "$body" &&
+                 grep -Fq '<style>' "$body" &&
+                 grep -Fq 'id="search-index"' "$body"; then
+                ok=1
+                break
+              fi
+              if [ "$attempt" -lt 5 ]; then sleep 5; fi
+            done
+            test "$ok" -eq 1 || { echo "Public route validation failed: $url"; exit 1; }
+            echo "Verified public route: $url"
+          done
