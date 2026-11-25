@@ -1,2 +1,2 @@
 # Status
-Phases 1–4 merged; Phase 4 CI 45519425783 passed. Phase 5 proposed; CI pending. Foundation security hardening remains. Phases 6–8 pending; release deferred.
+Phases 1–5 merged. Phase 5 exact-head CI 45521304635 passed both audits. Phase 6 proposed; tests pending. Phase 7–8 pending. Security hardening remains; release deferred.

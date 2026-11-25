@@ -1,3 +1,3 @@
 # Resume
-Verified main: f90fd83f6eb1719db16d74419d62b5c2adb9270f
-PR #4 merged, CI 45519425783. Phase 5 branch feat/governed-execution. Verify npm ci && npm test and website CI. Next: mock AI adapters and bounded budgets. Local approvals trust host operator; no exactly-once or production claim.
+Verified main: acd22971abf358a10fcb84c1d3315e5eae914e83
+Phase 5 merged, CI 45521304635. Phase 6 branch feat/bounded-ai. Verify npm ci && npm audit --audit-level=high && npm test and website CI. Next: CLI and local inspection dashboard. Mock adapter only; no provider compatibility or exactly-once claim.
