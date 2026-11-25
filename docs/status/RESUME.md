@@ -1,3 +1,3 @@
 # Resume
-Verified main: 1ff8f4c6991a5c483e5ee58b250ea62492e278b8
-PR #3 merged, CI 45494302731. Phase 4 branch feat/reliability: bounded retries, timeout and cancellation. Verify npm ci && npm test and website CI. Next: governed registry and approvals. Release deferred. No exactly-once guarantees.
+Verified main: f90fd83f6eb1719db16d74419d62b5c2adb9270f
+PR #4 merged, CI 45519425783. Phase 5 branch feat/governed-execution. Verify npm ci && npm test and website CI. Next: mock AI adapters and bounded budgets. Local approvals trust host operator; no exactly-once or production claim.
