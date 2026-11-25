@@ -28,7 +28,9 @@ try{
  await wait("document.querySelector('#status').textContent==='Loaded supplier'");
  assert.equal(await evaluate("document.querySelectorAll('#graph button').length"),3);
  await evaluate("document.querySelector('#graph button:last-of-type').focus()");
- await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+ assert.ok(await evaluate("document.activeElement === document.querySelector('#graph button:last-of-type')"));
+ await send('Input.dispatchKeyEvent',{type:'rawKeyDown',key:' ',code:'Space',windowsVirtualKeyCode:32,nativeVirtualKeyCode:32});
+ await send('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32,nativeVirtualKeyCode:32});
  await wait("document.querySelector('#details').textContent.includes('approval-required')");
  assert.ok(await evaluate("document.querySelector('#timeline').textContent.includes('authorization')"));
  await cli(['approve','supplier',dir,run.executionId,'operator']);
