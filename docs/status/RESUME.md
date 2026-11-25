@@ -1,2 +1,3 @@
 # Resume
-Verified main: 39c5d5db4a7f63f15661ff871cedbc0bac2053be. PR #8 adds dashboard, durable timeline and real Chromium CDP acceptance job. New exact-head CI required. Remaining: checkpoint validation and durable AI quota hardening, final acceptance reconciliation. Public release deferred.
+Verified main: 1cfb5c331e4ab68d208bcef23a49f39d7bfa91c7
+PR #8 merged, CI 45558225457 passed including Chromium. Final security branch feat/final-security-acceptance: verify all exact-head jobs and reviews, merge eligible PR and verify post-merge CI, then reconcile acceptance evidence. No public release or exactly-once guarantee.

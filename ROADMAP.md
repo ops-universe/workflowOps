@@ -1,7 +1,7 @@
 # Roadmap
 
-- [x] Phases 1–6: foundation, DAG, state, reliability, governance, offline AI (scoped implementations)
-- [ ] Phase 7: CLI merged in PR #7; local dashboard and timeline proposed; browser acceptance pending
-- [x] Phase 8: four synthetic CLI scenarios merged and tested in PR #7
-- [ ] Final security review and remaining hardening
-- [ ] Phase 9: public release deferred
+- [x] Phases 1–6: foundation, DAG, state, reliability, governance, offline AI (scoped)
+- [x] Phase 7: CLI, dashboard and durable timeline merged; Chromium post-merge CI 45558225457 passed
+- [x] Phase 8: four synthetic enterprise scenarios merged and tested
+- [ ] Final security acceptance: checkpoint validation and durable AI quota hardening proposed; exact-head and post-merge CI required
+- [ ] Phase 9: Developer Preview and public release deferred
