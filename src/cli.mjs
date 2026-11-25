@@ -1,18 +1,7 @@
-import {readFile,lstat} from 'node:fs/promises';
-import {join,resolve} from 'node:path';
+import {readCheckpoint as checkpoint} from './checkpoint-read.mjs';
 import {plan} from './workflow.mjs';
 import {runGoverned,approve} from './governance.mjs';
 import {scenario} from './scenarios.mjs';
-const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-async function checkpoint(directory,id){
- if(!uuid.test(id))throw Error('Invalid execution ID');
- const dir=resolve(directory);if(!(await lstat(dir)).isDirectory())throw Error('Invalid directory');
- const path=join(dir,id+'.json'),stat=await lstat(path);
- if(!stat.isFile()||stat.size>4194304)throw Error('Invalid checkpoint');
- const data=JSON.parse(await readFile(path,'utf8'));
- if(data.executionId!==id||data.schemaVersion!==1||!Array.isArray(data.tasks))throw Error('Invalid checkpoint');
- return data;
-}
 export async function cli(args){
  const [command,name,directory,id,actor]=args;
  if(!['validate','dag','dry-run','run','resume','inspect','approve'].includes(command))throw Error('Usage: validate|dag|dry-run|run|resume|inspect|approve SCENARIO DIRECTORY [EXECUTION_ID] [ACTOR]');

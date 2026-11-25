@@ -1,5 +1,6 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {mkdir,open,rename,readFile,unlink,lstat} from 'node:fs/promises';
+import {readCheckpoint} from './checkpoint-read.mjs';
 import {join,resolve} from 'node:path';
 import {attemptTask, normalizePolicy} from './reliability.mjs';
 import {plan} from './workflow.mjs';
@@ -16,7 +17,7 @@ function jsonOutput(value){
  if(typeof s!=='string'||Buffer.byteLength(s)>limit)throw Error('Invalid output');
  return JSON.parse(s);
 }
-export async function runDurable(def,registry,{directory,executionId=randomUUID(),resume=false, policies=new Map(), signal, gate, budget}={}){
+export async function runDurable(def,registry,{directory,executionId=randomUUID(),resume=false, policies=new Map(), signal, gate, budget, aiLimits=new Map(), governanceFingerprint=null}={}){
  if(typeof directory!=='string'||typeof executionId!=='string'||!idPattern.test(executionId))throw Error('Invalid checkpoint location or execution ID');
  const order=plan(def,registry), handlers=new Map(registry);
  const config=order.map(t=>normalizePolicy(policies.get(t.handler)));
@@ -24,6 +25,9 @@ export async function runDurable(def,registry,{directory,executionId=randomUUID(
  const policyFingerprint=digest(config);
  const maxAttempts=budget?.maxAttempts??10000;
  if(!Number.isInteger(maxAttempts)||maxAttempts<1||maxAttempts>10000)throw Error('Invalid execution budget');
+ const quotas=order.map(t=>aiLimits.get(t.handler)??null);
+ if(quotas.some(q=>q!==null&&(!Number.isInteger(q)||q<1||q>100)))throw Error('Invalid AI quota');
+ const quotaFingerprint=digest(quotas);
  const dir=resolve(directory);await mkdir(dir,{recursive:true,mode:0o700});
  if(!(await lstat(dir)).isDirectory())throw Error('Invalid checkpoint directory');
  const path=join(dir,executionId+'.json'),lockPath=path+'.lock';
@@ -31,9 +35,10 @@ export async function runDurable(def,registry,{directory,executionId=randomUUID(
  try{
   let snapshot;
   if(resume){
-   const stat=await lstat(path);if(!stat.isFile()||stat.size>limit)throw Error('Invalid checkpoint file');
-   snapshot=JSON.parse(await readFile(path,'utf8'));
-   if(snapshot.schemaVersion!==1||snapshot.executionId!==executionId||snapshot.fingerprint!==fingerprint||(snapshot.maxAttempts??10000)!==maxAttempts||(snapshot.policyFingerprint??digest(order.map(()=>normalizePolicy())))!==policyFingerprint||!Array.isArray(snapshot.tasks)||snapshot.tasks.length!==order.length)throw Error('Checkpoint mismatch');
+   snapshot=await readCheckpoint(dir,executionId);
+   if(snapshot.tasks?.some(t=>t?.state==='running'))throw Error('Interrupted task requires operator reconciliation');
+   if((snapshot.quotaFingerprint??digest(order.map(()=>null)))!==quotaFingerprint||(snapshot.governanceFingerprint??null)!==governanceFingerprint)throw Error('Checkpoint configuration mismatch');
+   if(snapshot.schemaVersion!==1||snapshot.executionId!==executionId||snapshot.workflowId!==def.id||snapshot.fingerprint!==fingerprint||(snapshot.maxAttempts??10000)!==maxAttempts||(snapshot.policyFingerprint??digest(order.map(()=>normalizePolicy())))!==policyFingerprint||!Array.isArray(snapshot.tasks)||snapshot.tasks.length!==order.length)throw Error('Checkpoint mismatch');
    for(let i=0;i<order.length;i++){
     const t=snapshot.tasks[i];
     if(!t||t.id!==order[i].id||!Object.hasOwn(transitions,t.state)||(t.state==='succeeded'&&!Object.hasOwn(t,'output')))throw Error('Invalid checkpoint state');
@@ -43,7 +48,7 @@ export async function runDurable(def,registry,{directory,executionId=randomUUID(
    }
   }else{
    try{await lstat(path);throw Error('Execution already exists');}catch(e){if(e.code!=='ENOENT')throw e;}
-   snapshot={schemaVersion:1,executionId,workflowId:def.id,fingerprint,policyFingerprint,maxAttempts,tasks:order.map(t=>({id:t.id,state:'pending'}))};
+   snapshot={schemaVersion:1,executionId,workflowId:def.id,fingerprint,policyFingerprint,maxAttempts,quotaFingerprint,governanceFingerprint,tasks:order.map(t=>({id:t.id,state:'pending'}))};
   }
   function event(taskId,type,detail={}){
    snapshot.timeline??=[];
@@ -55,7 +60,13 @@ export async function runDurable(def,registry,{directory,executionId=randomUUID(
    const tmp=path+'.'+randomUUID()+'.tmp';const f=await open(tmp,'wx',0o600);
    try{await f.writeFile(data);await f.sync();await f.close();await rename(tmp,path);}finally{await f.close().catch(()=>{});await unlink(tmp).catch(()=>{});}
   }
-  for(const t of snapshot.tasks)if(t.attempts!==undefined&&(!Number.isInteger(t.attempts)||t.attempts<1||t.attempts>10))throw Error('Invalid attempt count');
+  for(let i=0;i<snapshot.tasks.length;i++){
+   const t=snapshot.tasks[i],n=t.attempts??0;
+   if(!Number.isInteger(n)||n<0||n>config[i].maxAttempts||(['succeeded','failed'].includes(t.state)&&n===0)||(['pending','blocked'].includes(t.state)&&n!==0))throw Error('Invalid attempt count');
+   if(governanceFingerprint&&['succeeded','failed'].includes(t.state)&&t.authorization?.status!=='allow')throw Error('Invalid checkpoint authorization');
+  }
+  if(snapshot.tasks.reduce((n,t)=>n+(t.attempts??0),0)>maxAttempts)throw Error('Invalid execution budget history');
+  for(let i=0;i<order.length;i++)if(quotas[i]!==null&&snapshot.tasks.reduce((n,t,j)=>n+(order[j].handler===order[i].handler?(t.attempts??0):0),0)>quotas[i])throw Error('Invalid AI quota history');
   if(snapshot.tasks.some(t=>t.state==='running'))throw Error('Interrupted task requires operator reconciliation');
   if(!resume){event(null,'execution-created');}
   await save();
@@ -68,13 +79,15 @@ export async function runDurable(def,registry,{directory,executionId=randomUUID(
    if(remaining<=0){snapshot.stopReason='Execution budget exhausted';event(null,'budget-exhausted');await save();return snapshot;}
    const deps=t.dependsOn.map(d=>snapshot.tasks.find(x=>x.id===d));
    if(deps.some(d=>d.state!=='succeeded')){snapshot.tasks[i]=transition(current,'blocked');event(t.id,'blocked');await save();continue;}
+   const aiRemaining=quotas[i]===null?10000:quotas[i]-snapshot.tasks.reduce((n,x,j)=>n+(order[j].handler===t.handler?(x.attempts??0):0),0);
+   if(aiRemaining<=0){snapshot.stopReason='AI quota exhausted';event(t.id,'budget-exhausted');await save();return snapshot;}
    if(gate){const decision=await gate({executionId,workflowId:def.id,fingerprint,task:structuredClone(t),dependencies:Object.fromEntries(deps.map(d=>[d.id,structuredClone(d.output)]))});
     if(!decision||!['allow','deny','review'].includes(decision.status))throw Error('Invalid policy decision');
     current.authorization={status:decision.status,record:decision.record??null};event(t.id,'authorization',{status:decision.status});await save();
     if(decision.status!=='allow')return snapshot;
    }
    snapshot.tasks[i]=transition(current,'running');event(t.id,'running');await save();
-   const result=await attemptTask(handlers.get(t.handler),{dependencies:Object.fromEntries(deps.map(d=>[d.id,structuredClone(d.output)])),executionId,taskId:t.id,idempotencyKey:executionId+':'+t.id},{...config[i],maxAttempts:Math.min(config[i].maxAttempts,remaining)},{signal,onAttempt:async attempt=>{snapshot.tasks[i].attempts=attempt;event(t.id,'attempt',{attempt});await save();}});
+   const result=await attemptTask(handlers.get(t.handler),{dependencies:Object.fromEntries(deps.map(d=>[d.id,structuredClone(d.output)])),executionId,taskId:t.id,idempotencyKey:executionId+':'+t.id},{...config[i],maxAttempts:Math.min(config[i].maxAttempts,remaining,aiRemaining)},{signal,onAttempt:async attempt=>{snapshot.tasks[i].attempts=attempt;event(t.id,'attempt',{attempt});await save();}});
    if(result.uncertain){snapshot.tasks[i].interruption=result.error;event(t.id,'interrupted');await save();return snapshot;}
    let output;
    try{if(!result.ok)throw Error('Task failed');output=jsonOutput(result.output);}

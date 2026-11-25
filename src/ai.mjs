@@ -17,7 +17,7 @@ export function createAiAction({adapter,key,maxCalls=1,enabled=false}={}){
  if(typeof enabled!=='boolean'||!Number.isInteger(maxCalls)||maxCalls<1||maxCalls>100||typeof key!=='string'||key.length>128)throw Error('Invalid AI configuration');
  if(enabled&&(!adapter||adapter.kind!=='mock'||typeof adapter.generate!=='function'))throw Error('Only trusted offline mock adapters supported');
  let calls=0;
- return Object.freeze({effect:'none',permission:'ai',version:'v1',async run({dependencies,signal}){
+ return Object.freeze({effect:'none',permission:'ai',version:'v1',maxCalls,async run({dependencies,signal}){
   if(!enabled)throw Error('AI disabled');
   if(signal?.aborted)throw Error('Cancelled');
   if(calls>=maxCalls)throw Error('AI call budget exhausted');

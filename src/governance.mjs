@@ -7,7 +7,9 @@ export function createActionRegistry(entries){
  const actions=new Map();
  for(const [name,a] of entries){
   if(!identifier(name)||actions.has(name)||!a||typeof a.run!=='function'||!['none','local-write','external'].includes(a.effect)||!identifier(a.permission)||!identifier(a.version))throw Error('Invalid action');
-  actions.set(name,Object.freeze({run:a.run,effect:a.effect,permission:a.permission,version:a.version}));
+  if(a.maxCalls!==undefined&&(!Number.isInteger(a.maxCalls)||a.maxCalls<1||a.maxCalls>100||a.effect!=='none'||a.permission!=='ai'))throw Error('Invalid AI quota');
+  if(a.permission==='ai'&&a.maxCalls===undefined)throw Error('AI quota required');
+  actions.set(name,Object.freeze({run:a.run,effect:a.effect,permission:a.permission,version:a.version,maxCalls:a.maxCalls}));
  }
  return actions;
 }
@@ -28,7 +30,9 @@ export async function runGoverned(def,actions,{permissions=[],approvals=[],polic
  const policies=new Map(options.policies??[]);
  // Side effects are never automatically retried by this governed entrypoint.
  for(const [name,a] of trusted)if(a.effect!=='none'&&(policies.get(name)?.maxAttempts??1)>1)throw Error('Side effect retries denied');
- return runDurable(def,registry,{...options,policies,gate:async ctx=>{
+ const aiLimits=new Map([...trusted].filter(([,a])=>a.maxCalls!==undefined).map(([k,a])=>[k,a.maxCalls]));
+ const governanceFingerprint=hash(order.map(t=>{const a=trusted.get(t.handler);return [t.handler,a.version,a.effect,a.permission,a.maxCalls??null];}));
+ return runDurable(def,registry,{...options,policies,aiLimits,governanceFingerprint,gate:async ctx=>{
   const a=trusted.get(ctx.task.handler),scope=approvalScope(ctx,a);
   if(!grants.has(a.permission))return {status:'deny',record:{scope,reason:'permission'}};
   const decision=await policy({taskId:ctx.task.id,handler:ctx.task.handler,effect:a.effect,permission:a.permission,scope});
