@@ -17,7 +17,7 @@ function jsonOutput(value){
  return JSON.parse(s);
 }
 export async function runDurable(def,registry,{directory,executionId=randomUUID(),resume=false, policies=new Map(), signal, gate, budget}={}){
- if(typeof directory!=='string'||!idPattern.test(executionId))throw Error('Invalid checkpoint location or execution ID');
+ if(typeof directory!=='string'||typeof executionId!=='string'||!idPattern.test(executionId))throw Error('Invalid checkpoint location or execution ID');
  const order=plan(def,registry), handlers=new Map(registry);
  const config=order.map(t=>normalizePolicy(policies.get(t.handler)));
  const fingerprint=digest({schemaVersion:def.schemaVersion,id:def.id,tasks:order.map(t=>({...t,dependsOn:[...t.dependsOn].sort()}))});
@@ -45,6 +45,11 @@ export async function runDurable(def,registry,{directory,executionId=randomUUID(
    try{await lstat(path);throw Error('Execution already exists');}catch(e){if(e.code!=='ENOENT')throw e;}
    snapshot={schemaVersion:1,executionId,workflowId:def.id,fingerprint,policyFingerprint,maxAttempts,tasks:order.map(t=>({id:t.id,state:'pending'}))};
   }
+  function event(taskId,type,detail={}){
+   snapshot.timeline??=[];
+   if(snapshot.timeline.length>=20000)throw Error('Timeline limit reached');
+   snapshot.timeline.push({sequence:snapshot.timeline.length+1,at:new Date().toISOString(),taskId,type,...detail});
+  }
   async function save(){
    const data=JSON.stringify(snapshot);if(Buffer.byteLength(data)>limit)throw Error('Checkpoint too large');
    const tmp=path+'.'+randomUUID()+'.tmp';const f=await open(tmp,'wx',0o600);
@@ -52,28 +57,29 @@ export async function runDurable(def,registry,{directory,executionId=randomUUID(
   }
   for(const t of snapshot.tasks)if(t.attempts!==undefined&&(!Number.isInteger(t.attempts)||t.attempts<1||t.attempts>10))throw Error('Invalid attempt count');
   if(snapshot.tasks.some(t=>t.state==='running'))throw Error('Interrupted task requires operator reconciliation');
+  if(!resume){event(null,'execution-created');}
   await save();
   for(let i=0;i<order.length;i++){
    const t=order[i], current=snapshot.tasks[i];
    if(current.state==='running')throw Error('Interrupted task requires operator reconciliation');
    if(current.state!=='pending')continue;
-   if(signal?.aborted)break;
+   if(signal?.aborted){event(null,'cancelled');await save();break;}
    const remaining=maxAttempts-snapshot.tasks.reduce((n,t)=>n+(t.attempts??0),0);
-   if(remaining<=0){snapshot.stopReason='Execution budget exhausted';await save();return snapshot;}
+   if(remaining<=0){snapshot.stopReason='Execution budget exhausted';event(null,'budget-exhausted');await save();return snapshot;}
    const deps=t.dependsOn.map(d=>snapshot.tasks.find(x=>x.id===d));
-   if(deps.some(d=>d.state!=='succeeded')){snapshot.tasks[i]=transition(current,'blocked');await save();continue;}
+   if(deps.some(d=>d.state!=='succeeded')){snapshot.tasks[i]=transition(current,'blocked');event(t.id,'blocked');await save();continue;}
    if(gate){const decision=await gate({executionId,workflowId:def.id,fingerprint,task:structuredClone(t),dependencies:Object.fromEntries(deps.map(d=>[d.id,structuredClone(d.output)]))});
     if(!decision||!['allow','deny','review'].includes(decision.status))throw Error('Invalid policy decision');
-    current.authorization={status:decision.status,record:decision.record??null};await save();
+    current.authorization={status:decision.status,record:decision.record??null};event(t.id,'authorization',{status:decision.status});await save();
     if(decision.status!=='allow')return snapshot;
    }
-   snapshot.tasks[i]=transition(current,'running');await save();
-   const result=await attemptTask(handlers.get(t.handler),{dependencies:Object.fromEntries(deps.map(d=>[d.id,structuredClone(d.output)])),executionId,taskId:t.id,idempotencyKey:executionId+':'+t.id},{...config[i],maxAttempts:Math.min(config[i].maxAttempts,remaining)},{signal,onAttempt:async attempt=>{snapshot.tasks[i].attempts=attempt;await save();}});
-   if(result.uncertain){snapshot.tasks[i].interruption=result.error;await save();return snapshot;}
+   snapshot.tasks[i]=transition(current,'running');event(t.id,'running');await save();
+   const result=await attemptTask(handlers.get(t.handler),{dependencies:Object.fromEntries(deps.map(d=>[d.id,structuredClone(d.output)])),executionId,taskId:t.id,idempotencyKey:executionId+':'+t.id},{...config[i],maxAttempts:Math.min(config[i].maxAttempts,remaining)},{signal,onAttempt:async attempt=>{snapshot.tasks[i].attempts=attempt;event(t.id,'attempt',{attempt});await save();}});
+   if(result.uncertain){snapshot.tasks[i].interruption=result.error;event(t.id,'interrupted');await save();return snapshot;}
    let output;
    try{if(!result.ok)throw Error('Task failed');output=jsonOutput(result.output);}
-   catch{snapshot.tasks[i]={...transition(snapshot.tasks[i],'failed'),error:result.error??'Task failed'};await save();continue;}
-   snapshot.tasks[i]={...transition(snapshot.tasks[i],'succeeded'),output};await save();
+   catch{snapshot.tasks[i]={...transition(snapshot.tasks[i],'failed'),error:result.error??'Task failed'};event(t.id,'failed');await save();continue;}
+   snapshot.tasks[i]={...transition(snapshot.tasks[i],'succeeded'),output};event(t.id,'succeeded');await save();
   }
   return snapshot;
  }finally{await lock.close();await unlink(lockPath);}
