@@ -16,7 +16,7 @@ function jsonOutput(value){
  if(typeof s!=='string'||Buffer.byteLength(s)>limit)throw Error('Invalid output');
  return JSON.parse(s);
 }
-export async function runDurable(def,registry,{directory,executionId=randomUUID(),resume=false, policies=new Map(), signal}={}){
+export async function runDurable(def,registry,{directory,executionId=randomUUID(),resume=false, policies=new Map(), signal, gate}={}){
  if(typeof directory!=='string'||!idPattern.test(executionId))throw Error('Invalid checkpoint location or execution ID');
  const order=plan(def,registry), handlers=new Map(registry);
  const config=order.map(t=>normalizePolicy(policies.get(t.handler)));
@@ -57,6 +57,11 @@ export async function runDurable(def,registry,{directory,executionId=randomUUID(
    if(signal?.aborted)break;
    const deps=t.dependsOn.map(d=>snapshot.tasks.find(x=>x.id===d));
    if(deps.some(d=>d.state!=='succeeded')){snapshot.tasks[i]=transition(current,'blocked');await save();continue;}
+   if(gate){const decision=await gate({executionId,workflowId:def.id,fingerprint,task:structuredClone(t),dependencies:Object.fromEntries(deps.map(d=>[d.id,structuredClone(d.output)]))});
+    if(!decision||!['allow','deny','review'].includes(decision.status))throw Error('Invalid policy decision');
+    current.authorization={status:decision.status,record:decision.record??null};await save();
+    if(decision.status!=='allow')return snapshot;
+   }
    snapshot.tasks[i]=transition(current,'running');await save();
    const result=await attemptTask(handlers.get(t.handler),{dependencies:Object.fromEntries(deps.map(d=>[d.id,structuredClone(d.output)])),executionId,taskId:t.id,idempotencyKey:executionId+':'+t.id},config[i],{signal,onAttempt:async attempt=>{snapshot.tasks[i].attempts=attempt;await save();}});
    if(result.uncertain){snapshot.tasks[i].interruption=result.error;await save();return snapshot;}

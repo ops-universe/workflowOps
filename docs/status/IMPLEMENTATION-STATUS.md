@@ -1,2 +1,2 @@
 # Status
-Phases 1–3 merged (foundation hardening outstanding). Phase 4 reliability proposed; exact-head CI pending. Phases 5–8 pending; public release and promotional work deferred.
+Phases 1–4 merged; Phase 4 CI 45519425783 passed. Phase 5 proposed; CI pending. Foundation security hardening remains. Phases 6–8 pending; release deferred.
